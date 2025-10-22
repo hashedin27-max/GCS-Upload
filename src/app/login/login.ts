@@ -46,34 +46,34 @@ export class LoginComponent implements OnInit {
   }
 
   onSubmit(): void {
-    this.loginError = '';
+  this.loginError = '';
 
-    if (this.loginForm.valid) {
-      this.isSubmitting = true;
-      const { username, password } = this.loginForm.value;
+  if (this.loginForm.valid) {
+    this.isSubmitting = true;
+    const { username, password } = this.loginForm.value;
 
-      this.authService.login(username, password).subscribe({
-        next: (response) => {
-          console.log('Login successful:', response);
-          this.router.navigate(['/dashboard']);
-        },
-        error: (error) => {
-          console.error('Login failed:', error);
-          this.loginError = 'Invalid username or password. Please try again.';
-          this.isSubmitting = false;
-          
-          // Reset password field on error
-          this.loginForm.patchValue({ password: '' });
-        },
-        complete: () => {
-          this.isSubmitting = false;
-        }
-      });
-    } else {
-      // Mark all fields as touched to show validation errors
-      this.markFormGroupTouched();
-    }
+    // Use actual login if you have a backend, or loginDemo for testing
+    this.authService.login(username, password).subscribe({
+      next: (response) => {
+        console.log('Login successful:', response);
+        this.router.navigate(['/dashboard']); // or '/file-upload' if that's your route
+      },
+      error: (error) => {
+        console.error('Login failed:', error);
+        this.loginError = 'Invalid username or password. Please try again.';
+        this.isSubmitting = false;
+        
+        this.loginForm.patchValue({ password: '' });
+      },
+      complete: () => {
+        this.isSubmitting = false;
+      }
+    });
+  } else {
+    this.markFormGroupTouched();
   }
+}
+
 
   private markFormGroupTouched(): void {
     Object.keys(this.loginForm.controls).forEach(field => {

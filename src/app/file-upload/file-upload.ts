@@ -1,8 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, HostListener } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router';
 import { BUCKET_CONFIG } from '../config/bucket-config';
+import { AuthService, User } from '../services/auth.service';
 
 export interface FileUploadConfig {
   gcsBucket: string;
@@ -30,12 +32,11 @@ export interface UploadedFile {
 export class FileUpload implements OnInit {
   config: FileUploadConfig = {
     gcsBucket: '',
-    destinationPath: '',  // Changed from projectId
+    destinationPath: '',
     maxFileSize: 10,
     status: 'Ready to upload'
   };
 
-  // Load buckets and paths from imported config
   availableBuckets: string[] = BUCKET_CONFIG.gcsBuckets;
   availablePaths: string[] = BUCKET_CONFIG.destinationPaths;
 
@@ -44,23 +45,74 @@ export class FileUpload implements OnInit {
   isDragOver = false;
   isUploading = false;
 
+  currentUser: User | null = null;
+  showDropdown = false; // Add this property
+
   allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf', 
                   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                  'text/plain', 'application/zip'];
+                  'text/plain', 'Excel/xlsx'];
   
-  allowedExtensions = 'JPG, PNG, PDF, DOCX, TXT, ZIP';
+  allowedExtensions = 'JPG, PNG, PDF, DOCX, TXT, XLSX';
   maxFileSizeBytes = this.config.maxFileSize * 1024 * 1024;
 
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http: HttpClient,
+    private authService: AuthService,
+    private router: Router
+  ) {}
 
   ngOnInit(): void {
-    // Set default bucket and path
     if (this.availableBuckets.length > 0) {
       this.config.gcsBucket = this.availableBuckets[0];
     }
     if (this.availablePaths.length > 0) {
       this.config.destinationPath = this.availablePaths[0];
     }
+
+    // Get current user
+    this.currentUser = this.authService.getCurrentUser();
+    
+    // Subscribe to user changes
+    this.authService.currentUser$.subscribe(user => {
+      this.currentUser = user;
+    });
+  }
+
+  // Close dropdown when clicking outside
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    const clickedInside = target.closest('.user-avatar-container');
+    
+    if (!clickedInside) {
+      this.showDropdown = false;
+    }
+  }
+
+  // Toggle dropdown
+  toggleDropdown(event: Event): void {
+    event.stopPropagation();
+    this.showDropdown = !this.showDropdown;
+  }
+
+  // Logout function
+  logout(): void {
+    this.showDropdown = false;
+    
+    // If using real backend
+    this.authService.logout().subscribe({
+      next: () => {
+        this.router.navigate(['/login']);
+      },
+      error: (error) => {
+        console.error('Logout error:', error);
+        // Navigate anyway
+        this.router.navigate(['/login']);
+      }
+    });
+
+    // OR if using demo logout, comment out the above and use:
+    // this.authService.logoutDemo();
   }
 
   onDragOver(event: DragEvent): void {
@@ -117,7 +169,7 @@ export class FileUpload implements OnInit {
     return true;
   }
 
-  async uploadFiles(): Promise<void> {
+  async uploadFiles(): Promise<void> { 
     if (this.selectedFiles.length === 0) {
       alert('Please select files to upload');
       return;
@@ -158,7 +210,7 @@ export class FileUpload implements OnInit {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('bucket', this.config.gcsBucket);
-      formData.append('destinationPath', this.config.destinationPath);  // Changed from projectId
+      formData.append('destinationPath', this.config.destinationPath);
 
       this.http.post('/api/upload', formData, {
         reportProgress: true,
